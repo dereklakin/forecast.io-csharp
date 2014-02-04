@@ -1,6 +1,13 @@
 ﻿using System;
 using System.Globalization;
-using System.Web.Script.Serialization;
+#if WINDOWS_PHONE
+using System.Net;
+using System.Text;
+using System.Threading.Tasks;
+using Newtonsoft.Json;
+#else
+using System.Web.Script.Serialization
+#endif
 using ForecastIO.Extensions;
 
 namespace ForecastIO
@@ -22,6 +29,29 @@ namespace ForecastIO
         private const string CurrentForecastUrl = "https://api.forecast.io/forecast/{0}/{1},{2}?units={3}&extend={4}&exclude={5}";
         private const string PeriodForecastUrl = "https://api.forecast.io/forecast/{0}/{1},{2},{3}?units={4}&extend={5}&exclude={6}";
 
+#if WINDOWS_PHONE
+        public async Task<ForecastIOResponse> Get()
+        {
+            var url = (_time == null) ? String.Format(CurrentForecastUrl, _apiKey, _latitude, _longitude, _unit, _extend, _exclude) :
+                String.Format(PeriodForecastUrl, _apiKey, _latitude, _longitude, _time, _unit, _extend, _exclude);
+
+            var client = new CompressionEnabledWebClient { Encoding = Encoding.UTF8 };
+            var tcs = new TaskCompletionSource<DownloadStringCompletedEventArgs>();
+            DownloadStringCompletedEventHandler handler = (o, e) => tcs.TrySetResult(e);
+            client.DownloadStringCompleted += handler;
+            client.DownloadStringAsync(new Uri(url));
+            var args = await tcs.Task;
+            client.DownloadStringCompleted -= handler;
+            string result = RequestHelpers.FormatResponse(args.Result);
+            // Set response values.
+            _apiResponseTime = client.ResponseHeaders["X-Response-Time"];
+            _apiCallsMade = client.ResponseHeaders["X-Forecast-API-Calls"];
+
+            var dataObject = JsonConvert.DeserializeObject<ForecastIOResponse>(result);
+
+            return dataObject;
+        }
+#else
         public ForecastIOResponse Get()
         {
             var url = (_time == null) ? String.Format(CurrentForecastUrl, _apiKey, _latitude, _longitude, _unit, _extend, _exclude) :
@@ -41,8 +71,9 @@ namespace ForecastIO
             var dataObject = serializer.Deserialize<ForecastIOResponse>(result);
 
             return dataObject;
-
         }
+#endif
+
 
         public ForecastIORequest(string apiKey, float latF, float longF, Unit unit, Extend[] extend = null, Exclude[] exclude = null)
         {

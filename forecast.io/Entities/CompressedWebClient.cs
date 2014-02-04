@@ -9,9 +9,11 @@ namespace ForecastIO
         {
             var request = base.GetWebRequest(address) as HttpWebRequest;
             if (request == null) return null;
+#if !WINDOWS_PHONE
             request.AutomaticDecompression = DecompressionMethods.Deflate | DecompressionMethods.GZip;
+#endif
             return request;
         }
-        
+
     }
 }
